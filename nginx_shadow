@@ -1,0 +1,152 @@
+#! /usr/bin/python27
+import re, os, sys
+
+NGINX_PATH = "/usr/local/nginx"
+CONF_PATH = "/usr/local/nginx/conf"
+LISTEN_RE = re.compile(r"listen\s+([^\s\;]+)", re.IGNORECASE)
+INCLUDE_RE = re.compile(r"include\s+([^\;]+)", re.IGNORECASE)
+V6_ADDRESS_RE = re.compile(r"(?P<addr>\[[^\;]+\])(?P<port>\:\d+)?", re.IGNORECASE)
+V4_ADDRESS_RE = re.compile(r"(?P<addr>[\w\.\-]+)?(?:\:(?P<port>\d+))?", re.IGNORECASE)
+
+
+class NginxShadow:
+    def __init__(self, nginx_path, conf_path):
+        self.nginx_path = nginx_path
+        self.conf_path = conf_path
+
+    def _parse_listen(self, param):
+        if param.startswith("["):
+            r2 = V6_ADDRESS_RE.search(param)
+        else:
+            r2 = V4_ADDRESS_RE.search(param)
+        addr, port = r2.groups()
+        if addr.isdigit() and not port:
+            port = addr
+            addr = None
+
+        return addr, port
+
+
+    def modify(self, conf_file, target_path, recursive = True):
+        dir,fname = os.path.split(conf_file)
+        name_prefix = "_".join(os.path.relpath(dir, CONF_PATH).split('/'))
+        if name_prefix == '.':
+            name_prefix = ""
+        elif name_prefix:
+            name_prefix += "_"
+        if fname == 'nginx.origin.conf':
+            fname = 'nginx.conf'
+        target_file = os.path.join(target_path, name_prefix + fname)
+        
+        fin = open(conf_file, 'r')
+        fout = open(target_file, 'w')
+        if fname == "nginx.conf":
+            fout.write("# nginx_shadow: %s\n" % self.shadow_name)
+        for l in fin:
+            r = LISTEN_RE.findall(l)
+            if r:
+                addr, port = self._parse_listen(r[0])
+                if not port: continue
+                port = int(port) + self.port_inc
+                new_line = addr and (addr + ":" + str(port)) or str(port)
+                fout.write(l.replace(r[0], new_line))
+                continue
+
+            r = INCLUDE_RE.findall(l)
+            if r:
+                r = r[0]
+                dir, fname = os.path.split(r)
+                fname = fname.replace('.', '\.').replace('*', '[^\.]+')
+                fname_re = re.compile(fname)
+                for i in os.listdir(os.path.join(self.conf_path, dir)):
+                    if not fname_re.match(i): continue
+                    new_file = self.modify(os.path.join(self.conf_path, dir, i), target_path)
+                    fout.write(l.replace(r, new_file))
+                continue
+    
+            fout.write(l)
+
+        fin.close()
+        fout.close()
+        return target_file
+
+    def create(self, name, port_inc = 10):
+        self.port_inc = port_inc
+        self.shadow_name = name
+        target_path = os.path.join(self.conf_path, name)
+        try:
+            os.makedirs(target_path)
+        except Exception, e:
+            print e
+            return
+
+        if os.path.exists(os.path.join(self.conf_path, 'nginx.origin.conf')):
+            self.modify(os.path.join(self.conf_path, "nginx.origin.conf"), target_path)
+        else:
+            self.modify(os.path.join(self.conf_path, "nginx.conf"), target_path)
+
+    def get_current(self):
+        conf_path = os.path.join(self.conf_path, "nginx.conf")
+        if os.path.exists(conf_path):
+            f = open(conf_path, 'r')
+            d = f.read().split('\n')
+            f.close()
+        else:
+            d = []
+
+        if d and d[0].startswith("# nginx_shadow:"):
+            return d[0].split(":")[1].strip()
+
+        return "origin"
+                    
+    def switch(self, name = None):
+        if name == None or name == 'origin':
+            name = "origin"
+            conf_name = "nginx.origin.conf"
+        else:
+            conf_name = os.path.join(name, "nginx.conf")
+
+        active_name = self.get_current()
+        conf_path = os.path.join(self.conf_path, "nginx.conf")
+        # Examine if we have our shadow file ready. If not, create a new nginx and move origin to nginx.origin.conf
+        if active_name == 'origin':
+            orig_path = os.path.join(self.conf_path, "nginx.origin.conf")
+            if not os.path.exists(orig_path):
+                ret = os.system("mv %s %s" % (conf_path, orig_path))
+                if ret:
+                    print "unable to mv origin nginx.conf", ret
+                    return
+                print "Move nginx.conf to nginx.origin.conf"
+
+        f = open(conf_path, 'w')
+        f.write("\n".join(['# nginx_shadow: ' + name, 'include %s;\n' % conf_name]))
+        f.close()
+
+        print "Done"
+
+    def status(self):
+        print "Current conf:", self.get_current()
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    sub_parsers = parser.add_subparsers(dest='op')
+    group = sub_parsers.add_parser('create', help='Create a shadow conf from the original')
+    group.add_argument("name")
+    group.add_argument("--port", "-p", dest="port", help="increase listen port", type=int, default=10)
+    group = sub_parsers.add_parser('switch', help='Switch nginx to a conf')
+    group.add_argument("name")
+    group = sub_parsers.add_parser('status', help='Get current conf name')
+    args = parser.parse_args()
+
+    ns = NginxShadow(NGINX_PATH, CONF_PATH)
+    op = args.op 
+    if op == "create":
+        ns.create(sys.argv[2], args.port)
+    elif op == "switch":
+        ns.switch(sys.argv[2])
+    elif op == "status":
+        ns.status()
+        
+    

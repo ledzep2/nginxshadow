@@ -3,8 +3,16 @@ Nginx Conf Shadow Tool
 
 This is a tool to switch nginx between different confs. Useful specially during site maintenance.
 
+Install
+-------
+
+Change CONF_PATH in nginxshadow to your conf path before install. Then run
+
+`setup.py install`
+
+
 Usage
---------
+-----
 
 ### Create a named clone of origin nginx conf and change all listening ports defined. 
 
@@ -21,3 +29,5 @@ This creates an conf clone named "down" and increase all listening port defined 
 ### Show current conf
 
 `nginxshadow status`
+
+

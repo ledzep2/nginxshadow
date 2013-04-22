@@ -1,7 +1,6 @@
 #! /usr/bin/env python
 import re, os, sys
 
-NGINX_PATH = "/usr/local/nginx"
 CONF_PATH = "/usr/local/nginx/conf"
 LISTEN_RE = re.compile(r"listen\s+([^\s\;]+)", re.IGNORECASE)
 INCLUDE_RE = re.compile(r"include\s+([^\;]+)", re.IGNORECASE)
@@ -10,8 +9,7 @@ V4_ADDRESS_RE = re.compile(r"(?P<addr>[\w\.\-]+)?(?:\:(?P<port>\d+))?", re.IGNOR
 
 
 class NginxShadow:
-    def __init__(self, nginx_path, conf_path):
-        self.nginx_path = nginx_path
+    def __init__(self, conf_path):
         self.conf_path = conf_path
 
     def _parse_listen(self, param):

@@ -14,11 +14,11 @@ Change CONF_PATH in nginxshadow to your conf path before install. Then run
 Usage
 -----
 
-### Create a named clone of origin nginx conf and change all listening ports defined. 
+### Create a named clone of origin nginx conf and change all listening ports. 
 
 `nginxshadow create down --port 80`
 
-This creates an conf clone named "down" and increase all listening port defined by 80. 
+This creates an conf clone named "down" and increase all listening port by 80. 
 
 ### Switch to a named conf
 

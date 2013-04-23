@@ -1,4 +1,5 @@
 #! /usr/bin/env python
+# Requies python2.7
 import re, os, sys
 
 CONF_PATH = "/usr/local/nginx/conf"
@@ -138,7 +139,7 @@ if __name__ == "__main__":
     group = sub_parsers.add_parser('status', help='Get current conf name')
     args = parser.parse_args()
 
-    ns = NginxShadow(NGINX_PATH, CONF_PATH)
+    ns = NginxShadow(CONF_PATH)
     op = args.op 
     if op == "create":
         ns.create(sys.argv[2], args.port)
